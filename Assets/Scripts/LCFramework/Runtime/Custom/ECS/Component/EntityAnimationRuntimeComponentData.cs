@@ -11,10 +11,14 @@ public struct EntityAnimationRuntimeComponentData : IComponentData
     public bool Stop;
 
     //动态自动赋值（别瞎动哈）
-    public int MeshAndMatIndex;
     public int CurrentAnimationId;
     public float NormalizeTime;
     public float Time;
     public EntityAnimationConfigBuffer CurrentConfig;
     public int CurrentRepeatCount;
+}
+
+public struct MeshAndMatIndexBuffer : IBufferElementData
+{
+    public int MeshAndMatIndex;
 }

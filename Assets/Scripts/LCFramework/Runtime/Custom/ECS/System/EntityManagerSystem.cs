@@ -7,8 +7,9 @@ public partial class EntityManagerSystem : SystemBase
 
     public void ClearAllEntity()
     {
-        var spawnBuffer =  SystemAPI.GetSingletonBuffer<EntitySpawnBuffer>();
-        var unSpawnBuffer = SystemAPI.GetSingletonBuffer<EntityUnSpawnBuffer>();
+        var multiplyThreadBufferCache = SystemAPI.GetSingletonRW<EntityMultiplyThreadBufferCacheComponentData>();
+        var spawnBuffer = multiplyThreadBufferCache.ValueRW.SpawnBuffer;
+        var unSpawnBuffer = multiplyThreadBufferCache.ValueRW.UnSpawnpawnBuffer;
 
         spawnBuffer.Clear();
 

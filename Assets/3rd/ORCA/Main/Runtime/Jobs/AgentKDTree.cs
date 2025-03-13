@@ -22,6 +22,7 @@ using Nebukam.JobAssist;
 using static Nebukam.JobAssist.Extensions;
 using Unity.Collections;
 using Unity.Burst;
+using UnityEngine;
 
 namespace Nebukam.ORCA
 {
@@ -84,7 +85,6 @@ namespace Nebukam.ORCA
 
             job.m_inputAgents = m_agentProvider.outputAgents;
             job.m_outputTree = m_outputTree;
-
         }
 
         protected override void InternalDispose()

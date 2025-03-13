@@ -1,5 +1,6 @@
 ﻿
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
@@ -10,10 +11,10 @@ public class ECSAnimationAuthoring : MonoBehaviour
     [SerializeField]
     public List<EntityAnimationEventConfigBuffer> eventConfigs;
     [SerializeField]
-    public EntityAnimationConfigComponentData Config;
+    public EntityAnimationConfigComponentData[] TexConfigs;
 
-    public string MeshPath;
-    public string MatPath;
+    public string[] MeshPath;
+    public string[] MatPath;
 
     public class ECSAnimationAuthoringBaker : Baker<ECSAnimationAuthoring>
     {
@@ -23,6 +24,7 @@ public class ECSAnimationAuthoring : MonoBehaviour
 
             var animBuffer = AddBuffer<EntityAnimationConfigBuffer>(entity);
             var eventBuffer = AddBuffer<EntityAnimationEventConfigBuffer>(entity);
+
             // 事件
             AddBuffer<EntityAnimationTriggerEventBuffer>(entity);
             AddBuffer<EntityAnimationWaitTriggerEventBuffer>(entity);
@@ -36,7 +38,12 @@ public class ECSAnimationAuthoring : MonoBehaviour
                 eventBuffer.Add(authoring.eventConfigs[i]);
             }
 
-            AddComponent<EntityAnimationConfigComponentData>(entity, authoring.Config);
+            var buffer = AddBuffer<EntityAnimationConfigComponentData>(entity);
+            for (int i = 0; i < authoring.TexConfigs.Length; i++)
+            {
+                buffer.Add(authoring.TexConfigs[i]);
+            }
+
             AddComponent<EntityAnimationInstanceComponentData>(entity);
 
             AddComponent<EntityAnimationRuntimeComponentData>(entity, new EntityAnimationRuntimeComponentData()

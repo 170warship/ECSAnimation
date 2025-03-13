@@ -7,7 +7,7 @@ using Unity.Entities;
 using UnityEngine;
 
 [UpdateInGroup(typeof(EntityAnimationGroup))]
-[UpdateAfter(typeof(EntityAnimationSystem))]
+[UpdateAfter(typeof(EntityAnimationCollectionSystem))]
 [BurstCompile]
 public partial struct EntityAnimationEventSystem : ISystem
 {
@@ -15,7 +15,7 @@ public partial struct EntityAnimationEventSystem : ISystem
     public partial struct EntityAnimationEventTestSystemJob : IJobEntity
     {
         [ReadOnly] public ComponentLookup<EntityStateComponentData> _stateDataLookup;
-        [NativeDisableParallelForRestriction] public BufferLookup<EntityDamageBuffer> _entityDamageBufferLookup;
+        public NativeParallelMultiHashMap<Entity, EntityDamageBuffer>.ParallelWriter _entityDamageBufferLookup;
 
         [BurstCompile]
         public void Execute(
@@ -37,7 +37,7 @@ public partial struct EntityAnimationEventSystem : ISystem
 
                     if (stateData.SearchData.entity == Entity.Null) continue;
 
-                    if (!_entityDamageBufferLookup.TryGetBuffer(stateData.SearchData.entity, out var targetDamageBuffer)) continue;
+                    //if (!_entityDamageBufferLookup.TryGetBuffer(stateData.SearchData.entity, out var targetDamageBuffer)) continue;
 
                     var attack = 0f;
 
@@ -51,7 +51,7 @@ public partial struct EntityAnimationEventSystem : ISystem
                         if (attributeBufferData.AttributeType == AttributeType.AttackType) attackType = (EntityAttackType)(int)attributeBufferData.Value;
                     }
 
-                    targetDamageBuffer.Add(new EntityDamageBuffer()
+                    _entityDamageBufferLookup.Add(stateData.SearchData.entity, new EntityDamageBuffer()
                     {
                         DamageSrouce = entity,
                         DamageValue = attack,
@@ -73,7 +73,7 @@ public partial struct EntityAnimationEventSystem : ISystem
         state.Dependency = new EntityAnimationEventTestSystemJob
         {
             _stateDataLookup = SystemAPI.GetComponentLookup<EntityStateComponentData>(),
-            _entityDamageBufferLookup = SystemAPI.GetBufferLookup<EntityDamageBuffer>(),
+            _entityDamageBufferLookup = SystemAPI.GetSingletonRW<EntityMultiplyThreadBufferCacheComponentData>().ValueRW.DamageBuffer.AsParallelWriter(),
         }.ScheduleParallel(state.Dependency);
         state.Dependency.Complete();
     }

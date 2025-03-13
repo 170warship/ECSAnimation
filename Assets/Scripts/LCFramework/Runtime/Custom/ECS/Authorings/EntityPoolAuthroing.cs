@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Entities;
 using UnityEngine;
+using static Unity.Burst.Intrinsics.X86.Avx;
 
 public class EntityPoolAuthroing : MonoBehaviour
 {
@@ -15,58 +16,38 @@ public class EntityPoolAuthroing : MonoBehaviour
     }
 
     [SerializeField]
-    private List<EntityPoolAuthoringData> _entityPoolAuthoringDatas;
+    public List<EntityPoolAuthoringData> PrefabPool;
 
     public class EntityPoolAuthroingBaker : Baker<EntityPoolAuthroing>
     {
         public override void Bake(EntityPoolAuthroing authoring)
         {
             var entity = GetEntity(TransformUsageFlags.Dynamic);
-            var buffer =  AddBuffer<EntityPrefabBuffer>(entity);
+
+
             var assetDictComponentData = new EntityAnimationRendererAssetDictComponentData()
             {
-                AssetPathDict = new Dictionary<(string,string), int>(),
+                AssetPathDict = new Dictionary<(string, string), int>(),
                 AssetDict = new Dictionary<int, EntityAnimationRendererAssetDictComponentData.DictData>(),
             };
 
-            for (int i = 0; i < authoring._entityPoolAuthoringDatas.Count; i++)
+            AddComponentObject(entity, assetDictComponentData);
+
+            var buffer = AddBuffer<EntityPrefabBuffer>(entity);
+
+            for (int i = 0; i < authoring.PrefabPool.Count; i++)
             {
-                var data = authoring._entityPoolAuthoringDatas[i];
+                var data = authoring.PrefabPool[i];
+                var Prefab = GetEntity(data.Prefab, TransformUsageFlags.Dynamic);
+
                 buffer.Add(new EntityPrefabBuffer()
                 {
+                    Prefab = Prefab,
                     PrefabId = data.PrefabId,
-                    Prefab = GetEntity(data.Prefab, TransformUsageFlags.Dynamic)
                 });
-
-                var animation = data.Prefab.GetComponent<ECSAnimationAuthoring>();
-
-                if(animation)
-                {
-                    var key = (animation.MeshPath, animation.MatPath);
-                    if (!assetDictComponentData.AssetPathDict.TryGetValue(key, out var index))
-                    {
-                        index = ++assetDictComponentData.DictCount;
-                        assetDictComponentData.AssetDict.Add(index, new EntityAnimationRendererAssetDictComponentData.DictData()
-                        {
-                            Mesh = null,
-                            Mat = null,
-
-                            MeshPath = animation.MeshPath,
-                            MatPath = animation.MatPath,
-                            State = EntityAnimationRendererAssetDictComponentData.AssetState.None,
-                        });
-                        assetDictComponentData.AssetPathDict.Add(key, index);
-                    }
-                }
             }
 
-            AddComponentObject(entity, assetDictComponentData);
-            AddComponent<EntityPoolTag>(entity, new EntityPoolTag()
-            {
-                 Owner = entity,
-            });
-            AddBuffer<EntitySpawnBuffer>(entity);
-            AddBuffer<EntityUnSpawnBuffer>(entity);
+            AddComponent<EntityPoolTag>(entity, new EntityPoolTag());
         }
     }
 }

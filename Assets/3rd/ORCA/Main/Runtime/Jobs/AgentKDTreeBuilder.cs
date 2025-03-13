@@ -44,6 +44,7 @@ namespace Nebukam.ORCA
         protected AgentKDTree m_agentKDTreeProvider;
 
         public AgentProvider AgentProvider { get { return m_agentProvider; } }
+        public AgentKDTree  AgentKDTreeProvider { get { return m_agentKDTreeProvider; } }
 
         public IAgentGroup<IAgent> agents { 
             get { return m_agentProvider.agents; } 

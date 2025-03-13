@@ -14,11 +14,11 @@ public class ECSAnimationMaker : MonoBehaviour
     }
 
     public const float Split = 0.01f;
-	[Serializable]
-	public struct ECSAnimationMakeData
-	{
-		[SerializeField]
-		public int Id;
+    [Serializable]
+    public struct ECSAnimationMakeData
+    {
+        [SerializeField]
+        public int Id;
         [SerializeField]
         public AnimationClip Animation;
         [SerializeField]

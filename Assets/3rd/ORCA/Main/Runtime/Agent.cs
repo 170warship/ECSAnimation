@@ -21,7 +21,6 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using Nebukam.Common;
-using PlasticPipe.PlasticProtocol.Messages;
 
 namespace Nebukam.ORCA
 {

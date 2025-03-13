@@ -17,10 +17,12 @@ public partial class EntitySpawnSystem : SystemBase
     [BurstCompile]
     public partial struct EntitySpawnSystemJob:IJobEntity
     {
+        public EntityCommandBuffer.ParallelWriter _cmd;
         public NativeList<long>.ParallelWriter _spawnIdRelease;
 
         [ReadOnly] public NativeParallelHashMap<int, ORCALayer> LayerDict;
         [ReadOnly] public ComponentLookup<LocalTransform> _tsDataLookup;
+        [ReadOnly] public BufferLookup<Child> _childBufferLookup;
 
         [NativeDisableContainerSafetyRestriction] public NativeParallelHashMap<long, NativeList<EntityAttributeBuffer>> _customData;
 
@@ -213,7 +215,6 @@ public partial class EntitySpawnSystem : SystemBase
                 data.ValueRW.HasState = hasState;
                 data.ValueRW.AttackRadius = attackRadius;
                 data.ValueRW.CurrentAttackTime = attackInterval * 0.8f;
-
                 var initSearchData = EntitySearchHelper.SearchData.Null;
                 initSearchData.tsData.Position = tsData.Position;
                 data.ValueRW.SearchData = initSearchData;
@@ -236,6 +237,23 @@ public partial class EntitySpawnSystem : SystemBase
             {
                 _spawnIdRelease.AddNoResize(instanceData.SpawnId);
             }
+
+            RecursionEnableChilds(entity, sortKey);
+        }
+
+        [BurstCompile]
+        private void RecursionEnableChilds(Entity entity, int index)
+        {
+            if (_childBufferLookup.TryGetBuffer(entity, out var childBuffer))
+            {
+                for (int i = 0; i < childBuffer.Length; i++)
+                {
+                    var child = childBuffer[i].Value;
+                    RecursionEnableChilds(child, index);
+                }
+            }
+
+            _cmd.RemoveComponent<Disabled>(index, entity);
         }
 
         [BurstCompile]
@@ -301,7 +319,7 @@ public partial class EntitySpawnSystem : SystemBase
         _prefabBuffer = SystemAPI.GetSingletonBuffer<EntityPrefabBuffer>();
         _cmd = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-        var spawnBuffer = SystemAPI.GetSingletonBuffer<EntitySpawnBuffer>();
+        var spawnBuffer = SystemAPI.GetSingletonRW<EntityMultiplyThreadBufferCacheComponentData>().ValueRW.SpawnBuffer;
         var spawnStop = spawnBuffer.Length - math.min(spawnBuffer.Length, _maxSpawnNumber);
         for (int i = spawnBuffer.Length - 1; i >= spawnStop; i--)
         {
@@ -326,7 +344,7 @@ public partial class EntitySpawnSystem : SystemBase
 
         var entityQuery = SystemAPI
             .QueryBuilder()
-            .WithAll<EntityAttributeBuffer, LocalTransform, InstanceTag>()
+            .WithAll<EntityAttributeBuffer, LocalTransform, InstanceTag, Disabled>()
             .WithDisabled<EntityAttributeComponentData>()
             .Build();
 
@@ -334,6 +352,7 @@ public partial class EntitySpawnSystem : SystemBase
         var customAttributeMap = spawnHelper.ValueRW.SpawnCustomAttributeMap;
 
         _spawnIdRelease.Clear();
+        var cmd = new EntityCommandBuffer(Allocator.Persistent);
         Dependency = new EntitySpawnSystemJob
         {
             LayerDict = LayerDict,
@@ -344,11 +363,18 @@ public partial class EntitySpawnSystem : SystemBase
             _stateDataLookup = SystemAPI.GetComponentLookup<EntityStateComponentData>(),
             _searchDataLookup = SystemAPI.GetComponentLookup<EntitySearchTag>(),
             _hpBarDataLookup = SystemAPI.GetComponentLookup<HpBarComponentData>(),
+            _childBufferLookup = SystemAPI.GetBufferLookup<Child>(),
             _customData = customAttributeMap,
             _spawnIdRelease = _spawnIdRelease.AsParallelWriter(),
+            _cmd = cmd.AsParallelWriter(),
         }.ScheduleParallel(entityQuery, Dependency);
         Dependency.Complete();
 
+        cmd.Playback(EntityManager);
+        cmd.Dispose();
+
+        //struct chang
+        spawnHelper = SystemAPI.GetSingletonRW<SpawnHelperComponentData>();
         for (int i = 0; i < _spawnIdRelease.Length; i++)
         {
             spawnHelper.ValueRW.ReleaseKey(_spawnIdRelease[i]);
@@ -441,7 +467,6 @@ public partial class EntitySpawnSystem : SystemBase
                 case cfg.ComponentType.HpBarComponentData:
                     {
                         _cmd.AddComponent<HpBarComponentData>(entity);
-                        _cmd.AddBuffer<EntityDamageBuffer>(entity);
                         break;
                     }
             }

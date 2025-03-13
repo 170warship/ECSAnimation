@@ -22,6 +22,7 @@ using Nebukam.JobAssist;
 using static Nebukam.JobAssist.Extensions;
 using Unity.Collections;
 using Nebukam.Common;
+using UnityEngine;
 
 namespace Nebukam.ORCA
 {
@@ -175,14 +176,14 @@ namespace Nebukam.ORCA
                         //Obstacle is a closed polygon
                         for (int v = 0; v < vCount; v++)
                         {
-                            oData = new ObstacleVertexData()
+                            oData = new ObstacleVertexData();
                             {
-                                infos = i,
-                                index = index,
-                                pos = o[v].XZ,
-                                prev = v == 0 ? lastIndex : index - 1,
-                                next = v == vCountMinusOne ? firstIndex : index + 1
-                            };
+                                oData.infos = i;
+                                oData.index = index;
+                                oData.pos = o[v].XZ;
+                                oData.prev = v == 0 ? lastIndex : index - 1;
+                                oData.next = v == vCountMinusOne ? firstIndex : index + 1;
+                            }
                             m_referenceObstacles[index++] = oData;
                         }
                     }

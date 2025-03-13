@@ -23,7 +23,7 @@ public partial struct EntityUnSpawnSystem : ISystem
     private partial struct EntityUnSpawnSystemJob : IJobParallelFor
     {
         public EntityCommandBuffer.ParallelWriter _cmd;
-        [ReadOnly] public DynamicBuffer<EntityUnSpawnBuffer> _unSpawnBuffer;
+        public NativeArray<EntityUnSpawnBuffer>.ReadOnly _unSpawnBuffer;
         [ReadOnly] public DynamicBuffer<EntityPrefabBuffer> _prefabBuffer;
         public NativeList<int>.ParallelWriter _changeNumber;
 
@@ -32,8 +32,7 @@ public partial struct EntityUnSpawnSystem : ISystem
         [ReadOnly] public ComponentLookup<EntityStateComponentData> _stateDataLookup;
         [ReadOnly] public ComponentLookup<EntitySearchTag> _searchDataLookup;
         [ReadOnly] public ComponentLookup<HpBarComponentData> _hpBarDataLookup;
-
-        [NativeDisableParallelForRestriction] public BufferLookup<EntityDamageBuffer> _damageBuffer;
+        [ReadOnly] public BufferLookup<Child> _childLookup;
 
         [BurstCompile]
         public void Execute(int index)
@@ -70,13 +69,28 @@ public partial struct EntityUnSpawnSystem : ISystem
                     if (_stateDataLookup.HasComponent(unSpawnData.Entity)) _cmd.RemoveComponent<EntityStateComponentData>(index, unSpawnData.Entity);
                     if (_searchDataLookup.HasComponent(unSpawnData.Entity)) _cmd.RemoveComponent<EntitySearchTag>(index, unSpawnData.Entity);
                     if (_hpBarDataLookup.HasComponent(unSpawnData.Entity)) _cmd.RemoveComponent<HpBarComponentData>(index, unSpawnData.Entity);
-                    if(_damageBuffer.TryGetBuffer(unSpawnData.Entity, out var buffer))
-                    {
-                        buffer.Clear();
-                    }
+
+                    RecursionDisable(unSpawnData.Entity, index);
                     break;
                 }
             }
+        }
+
+
+
+        [BurstCompile]
+        private void RecursionDisable(Entity entity, int index)
+        {
+            if (_childLookup.TryGetBuffer(entity, out var childBuffer))
+            {
+                for (int i = 0; i < childBuffer.Length; i++)
+                {
+                    var child = childBuffer[i].Value;
+                    RecursionDisable(child, index);
+                }
+            }
+
+            _cmd.AddComponent<Disabled>(index, entity);
         }
     }
 
@@ -97,12 +111,12 @@ public partial struct EntityUnSpawnSystem : ISystem
     {
         _cmd = new EntityCommandBuffer(Allocator.Persistent);
         _prefabBuffer = SystemAPI.GetSingletonBuffer<EntityPrefabBuffer>();
-        var unSpawnBuffer = SystemAPI.GetSingletonBuffer<EntityUnSpawnBuffer>();
+        var unSpawnBuffer = SystemAPI.GetSingleton<EntityMultiplyThreadBufferCacheComponentData>().UnSpawnpawnBuffer;
         _changeNumber.Clear();
         new EntityUnSpawnSystemJob()
         {
             _cmd = _cmd.AsParallelWriter(),
-            _unSpawnBuffer = unSpawnBuffer,
+            _unSpawnBuffer = unSpawnBuffer.AsReadOnly(),
             _prefabBuffer = _prefabBuffer,
             _changeNumber = _changeNumber.AsParallelWriter(),
 
@@ -111,7 +125,7 @@ public partial struct EntityUnSpawnSystem : ISystem
             _stateDataLookup = SystemAPI.GetComponentLookup<EntityStateComponentData>(),
             _searchDataLookup = SystemAPI.GetComponentLookup<EntitySearchTag>(),
             _hpBarDataLookup = SystemAPI.GetComponentLookup<HpBarComponentData>(),
-            _damageBuffer = SystemAPI.GetBufferLookup<EntityDamageBuffer>(),
+            _childLookup = SystemAPI.GetBufferLookup<Child>(),
         }.Schedule(unSpawnBuffer.Length, 1).Complete();
 
         _cmd.Playback(state.EntityManager);
@@ -127,7 +141,8 @@ public partial struct EntityUnSpawnSystem : ISystem
             _prefabBuffer[key] = data;
         }
 
-        unSpawnBuffer = SystemAPI.GetSingletonBuffer<EntityUnSpawnBuffer>();
-        unSpawnBuffer.Clear();
+        //unSpawnBuffer = SystemAPI.GetSingletonBuffer<EntityUnSpawnBuffer>();
+        //unSpawnBuffer.Clear();
+        SystemAPI.GetSingletonRW<EntityMultiplyThreadBufferCacheComponentData>().ValueRW.UnSpawnpawnBuffer.Clear();
     }
 }

@@ -793,7 +793,9 @@ MonoBehaviour:
   - Id: 2
     Animation: {fileID: 7400000, guid: 72dc849f01da5b64bb5efb895b3c852f, type: 3}
     Loop: 1
-    Events: []
+    Events:
+    - EventId: 1
+      EventTime: 0.5
     Start: 201
     End: 285
     LenSec: 0.8333334

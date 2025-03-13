@@ -5,7 +5,7 @@ using Unity.Entities;
 using UnityEngine;
 
 [UpdateInGroup(typeof(EntityAnimationGroup))]
-[UpdateAfter(typeof(EntityAnimationSystem))]
+[UpdateAfter(typeof(EntityAnimationCollectionSystem))]
 [BurstCompile]
 public partial struct EntityAnimationEventTestSystem : ISystem
 {

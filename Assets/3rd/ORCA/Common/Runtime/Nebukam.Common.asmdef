@@ -1,10 +1,12 @@
 {
     "name": "Nebukam.Common",
+    "rootNamespace": "",
     "references": [
         "Nebukam.Common.Editor",
         "Unity.Mathematics",
         "Unity.Collections",
-        "Unity.Burst"
+        "Unity.Burst",
+        "Unity.Transforms"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -13,5 +15,6 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": []
+    "versionDefines": [],
+    "noEngineReferences": false
 }

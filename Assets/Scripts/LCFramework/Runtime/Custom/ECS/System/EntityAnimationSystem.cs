@@ -6,11 +6,11 @@ using Unity.Mathematics;
 using UnityEngine;
 using Unity.Transforms;
 using UnityEngine.UIElements;
-using static EntityAnimationSystem;
+using static EntityAnimationCollectionSystem;
 
 [UpdateInGroup(typeof(EntityAnimationGroup))]
 [BurstCompile]
-public partial struct EntityAnimationSystem : ISystem
+public partial struct EntityAnimationCollectionSystem : ISystem
 {
     public struct RendererWriteData
     {
@@ -21,15 +21,11 @@ public partial struct EntityAnimationSystem : ISystem
     [BurstCompile]
     public partial struct ECSAnimationSystemJob : IJobEntity
     {
-        [ReadOnly]public float DeltaTime;
-        [ReadOnly] public EntityCommonValueComponentData _commonValueData;
-        [ReadOnly] public ComponentLookup<EntitySearchTag> _searchDataLookup;
-
-        public NativeList<RendererWriteData>.ParallelWriter _datas;
+        [ReadOnly] public float DeltaTime;
 
         [BurstCompile]
         public void Execute(
-                EntityAnimationConfigComponentData config
+                DynamicBuffer<EntityAnimationConfigComponentData> configs
                 , ref EntityAnimationRuntimeComponentData data
                 , ref EntityAnimationInstanceComponentData instanceData
                 , DynamicBuffer<EntityAnimationConfigBuffer> configBuffer
@@ -38,6 +34,7 @@ public partial struct EntityAnimationSystem : ISystem
                 , DynamicBuffer<EntityAnimationWaitTriggerEventBuffer> waitEventBuffer
                 , InstanceTag _
                 , ref LocalTransform tsData
+                , Entity entity
             )
         {
             if (configBuffer.Length == 0) goto PlayAnim;
@@ -66,6 +63,7 @@ public partial struct EntityAnimationSystem : ISystem
 
         //播放动画
         PlayAnim:
+            var texHeight = configs[0].Height;
             if (data.CurrentConfig == EntityAnimationConfigBuffer.Null)
             {
                 if (configBuffer.Length > 0)
@@ -86,7 +84,7 @@ public partial struct EntityAnimationSystem : ISystem
             data.NormalizeTime = data.CurrentConfig.AnimationLoop
                 ? math.abs(trulyValue - math.trunc(trulyValue))
                 : trulyValue;
-            var uvY = math.clamp((data.NormalizeTime * ((data.CurrentConfig.EndLine - data.CurrentConfig.StartLine) * 1.0f / config.Height)) + data.CurrentConfig.StartLine * 1.0f / config.Height, 0, data.CurrentConfig.EndLine * 1.0f / config.Height - 1f / config.Height);
+            var uvY = math.clamp((data.NormalizeTime * ((data.CurrentConfig.EndLine - data.CurrentConfig.StartLine) * 1.0f / texHeight)) + data.CurrentConfig.StartLine * 1.0f / texHeight, 0, data.CurrentConfig.EndLine * 1.0f / texHeight - 1f / texHeight);
 
             var rot = ((Quaternion)tsData.Rotation).eulerAngles;
 
@@ -96,17 +94,6 @@ public partial struct EntityAnimationSystem : ISystem
             instanceData.scale = tsData.Scale;
             instanceData.lerpValue = math.clamp(instanceData.lerpValue + 1 / data.Duration * DeltaTime, 0, 1);
             instanceData.flashWhite = math.clamp(instanceData.flashWhite - 1 / 0.3f * DeltaTime, 0, 1);
-
-            //屏幕内才渲染
-            if (_commonValueData.CheckInScreen(tsData.Position))
-            {
-                _datas.AddNoResize(new RendererWriteData()
-                {
-                    MeshAndMatIndex = data.MeshAndMatIndex,
-                    InstanceData = instanceData,
-                });
-            }
-
 
             //事件处理
             eventBuffer.Clear();
@@ -132,13 +119,13 @@ public partial struct EntityAnimationSystem : ISystem
                 for (int j = 0; j < eventConfigBuffer.Length; j++)
                 {
                     var eventConfigBufferData = eventConfigBuffer[j];
-                    if(eventConfigBufferData.AnimationId == data.CurrentAnimationId)
+                    if (eventConfigBufferData.AnimationId == data.CurrentAnimationId)
                     {
                         eventBuffer.Add(new EntityAnimationTriggerEventBuffer() { EventId = eventConfigBufferData.EventId });
                     }
                 }
             }
-            
+
             ReigsterWaitEvent(eventConfigBuffer, waitEventBuffer, data);
         }
 
@@ -166,36 +153,22 @@ public partial struct EntityAnimationSystem : ISystem
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.EntityManager.AddComponent<AnimationInstanceDatas>(state.SystemHandle);
-        var datas = SystemAPI.GetSingletonRW<AnimationInstanceDatas>();
-        datas.ValueRW.Datas = new NativeList<RendererWriteData>(1 << 20, Allocator.Persistent);
+
     }
 
     [BurstCompile]
     public void OnDestory(ref SystemState state)
     {
-        var datas = SystemAPI.GetSingletonRW<AnimationInstanceDatas>();
-        datas.ValueRW.Datas.Dispose();
+
     }
 
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var datas = SystemAPI.GetSingletonRW<AnimationInstanceDatas>();
-        datas.ValueRW.Datas.Clear();
-
         state.Dependency = new ECSAnimationSystemJob
         {
             DeltaTime = SystemAPI.Time.DeltaTime,
-            _datas = datas.ValueRW.Datas.AsParallelWriter(),
-            _commonValueData = SystemAPI.GetSingleton<EntityCommonValueComponentData>(),
-            _searchDataLookup = SystemAPI.GetComponentLookup<EntitySearchTag>(),
         }.ScheduleParallel(state.Dependency);
         state.Dependency.Complete();
     }
-}
-
-public partial struct AnimationInstanceDatas : IComponentData
-{
-    public NativeList<RendererWriteData> Datas;
 }

@@ -23,6 +23,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Mathematics;
+using Unity.Transforms;
 
 namespace Nebukam.ORCA
 {
@@ -60,6 +61,16 @@ namespace Nebukam.ORCA
 
         public float3 worldPosition;
         public float3 worldVelocity;
+
+        /// <summary>
+        /// 所属Team
+        /// </summary>
+        public int AgentTeam;
+
+        /// <summary>
+        /// Ts
+        /// </summary>
+        public LocalTransform TsData;
     }
 
     /// <summary>

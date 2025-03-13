@@ -2,12 +2,13 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Entities.UniversalDelegates;
 using Unity.Mathematics;
 using UnityEngine;
 using static EntityAnimationRendererAssetDictComponentData;
 
 [UpdateInGroup(typeof(EntityAnimationGroup))]
-[UpdateAfter(typeof(EntityAnimationSystem))]
+[UpdateAfter(typeof(EntityAnimationCollectionSystem))]
 public partial class EntityAnimationDrawSystem : SystemBase
 {
     private class AnimationDrawComponentData
@@ -44,24 +45,19 @@ public partial class EntityAnimationDrawSystem : SystemBase
         {
             if (_material == null)
             {
-                if(AssetData.State == AssetState.None)
+                if (AssetData.State == AssetState.None)
                 {
                     AssetData.StartLoad();
                     return;
                 }
 
-                if(AssetData.State == AssetState.Loading)
+                if (AssetData.State == AssetState.Loading)
                 {
                     return;
                 }
 
                 _mesh = AssetData.Mesh;
                 _material = AssetData.Mat;
-#if UNITY_EDITOR   
-                //Editor上用Shader读一遍 不然Editor上AB加载不到
-                var shader = Shader.Find("Unlit/Animation");
-                _material.shader = shader;
-#endif
 
                 _bounds = new Bounds(Vector3.zero, Vector3.one * 512);
                 _subMeshIndex = Mathf.Clamp(_subMeshIndex, 0, _mesh.subMeshCount - 1);
@@ -71,6 +67,8 @@ public partial class EntityAnimationDrawSystem : SystemBase
             }
 
             var trulyDataLength = _trulyDatas.Length;
+
+            if (trulyDataLength == 0) return;
 
             AutoCreateTex(trulyDataLength);
 
@@ -92,8 +90,8 @@ public partial class EntityAnimationDrawSystem : SystemBase
                 , _computeBuffer
                 , 0
                 , null
-                , UnityEngine.Rendering.ShadowCastingMode.Off
-                , false
+                , UnityEngine.Rendering.ShadowCastingMode.On
+                , true
                 , 0
                 , null);
         }
@@ -101,7 +99,7 @@ public partial class EntityAnimationDrawSystem : SystemBase
         private void AutoCreateTex(int length)
         {
             var compareValue = length * _size;
-            if (_currentSizePow2 >= compareValue) return;
+            if (_currentSizePow2 > compareValue) return;
 
             while (_currentSizePow2 < compareValue)
             {
@@ -131,7 +129,7 @@ public partial class EntityAnimationDrawSystem : SystemBase
 
     protected override void OnCreate()
     {
-        _allDraw = new Dictionary<int, AnimationDrawComponentData>();        
+        _allDraw = new Dictionary<int, AnimationDrawComponentData>();
     }
 
     protected override void OnDestroy()
@@ -146,29 +144,35 @@ public partial class EntityAnimationDrawSystem : SystemBase
 
     protected override void OnUpdate()
     {
-        if(_assetData == null) _assetData = EntityManager.GetComponentObject<EntityAnimationRendererAssetDictComponentData>(SystemAPI.GetSingleton<EntityPoolTag>().Owner);
-        var animInstanceDatas = SystemAPI.GetSingleton<AnimationInstanceDatas>();
+        if (_assetData == null) _assetData = EntityManager.GetComponentObject<EntityAnimationRendererAssetDictComponentData>(SystemAPI.GetSingletonEntity<EntityPoolTag>());
 
         foreach (var item in _allDraw.Values)
         {
             item._trulyDatas.Clear();
         }
 
-        for (int i = 0; i < animInstanceDatas.Datas.Length; i++)
-        {
-            var data = animInstanceDatas.Datas[i];
-            var MeshAndMatIndex = data.MeshAndMatIndex;
-            
-            if (!_allDraw.ContainsKey(MeshAndMatIndex))
-            {
-                var createNew = new AnimationDrawComponentData();
-                createNew.AssetData = _assetData.AssetDict[MeshAndMatIndex];
-                createNew.OnCreate();
-                _allDraw.Add(MeshAndMatIndex, createNew);
-            }
+        var commonUseData = SystemAPI.GetSingleton<EntityCommonValueComponentData>();
 
-            var draw = _allDraw[MeshAndMatIndex];
-            draw._trulyDatas.Add(data.InstanceData);
+        foreach (var (_, meshAndMatIndexs, animationInstanceData) in SystemAPI
+            .Query<InstanceTag, DynamicBuffer<MeshAndMatIndexBuffer>, EntityAnimationInstanceComponentData>())
+        {
+            for (int i = 0; i < meshAndMatIndexs.Length; i++)
+            {
+                if (!commonUseData.CheckInScreen(animationInstanceData.pos)) continue;
+
+                var meshAndMatIndex = meshAndMatIndexs[i].MeshAndMatIndex;
+
+                if (!_allDraw.TryGetValue(meshAndMatIndex, out var draw))
+                {
+                    var createNew = new AnimationDrawComponentData();
+                    createNew.AssetData = _assetData.AssetDict[meshAndMatIndex];
+                    createNew.OnCreate();
+                    draw = createNew;
+                    _allDraw.Add(meshAndMatIndex, createNew);
+                }
+
+                draw._trulyDatas.Add(animationInstanceData);
+            }
         }
 
         foreach (var item in _allDraw.Values)

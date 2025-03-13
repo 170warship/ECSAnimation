@@ -24,7 +24,8 @@ public partial struct EntityStateSystem : ISystem
 
         [NativeDisableParallelForRestriction] public ComponentLookup<EntityRVOAgentComponentData> _rvoDataLookup;
         [NativeDisableParallelForRestriction] public ComponentLookup<EntitySearchTag> _searchTagLookup;
-        [NativeDisableParallelForRestriction] public DynamicBuffer<EntityUnSpawnBuffer> _unSpawnBuffer;
+        //[NativeDisableParallelForRestriction] public DynamicBuffer<EntityUnSpawnBuffer> _unSpawnBuffer;
+        public NativeList<EntityUnSpawnBuffer>.ParallelWriter _unSpawnBuffer;
         [ReadOnly] public ComponentLookup<HpBarComponentData> _hpDataLookup;
 
 
@@ -47,7 +48,7 @@ public partial struct EntityStateSystem : ISystem
 
                 if (stateData.CurrentDeadTime >= 1)
                 {
-                    _unSpawnBuffer.Add(new EntityUnSpawnBuffer()
+                    _unSpawnBuffer.AddNoResize(new EntityUnSpawnBuffer()
                     {
                         Entity = instanceData.Self,
                         PrefabId = instanceData.PrefabId,
@@ -169,7 +170,7 @@ public partial struct EntityStateSystem : ISystem
             _rvoDataLookup = SystemAPI.GetComponentLookup<EntityRVOAgentComponentData>(),
             _searchTagLookup = SystemAPI.GetComponentLookup<EntitySearchTag>(),
             _hpDataLookup = SystemAPI.GetComponentLookup<HpBarComponentData>(),
-            _unSpawnBuffer = SystemAPI.GetSingletonBuffer<EntityUnSpawnBuffer>(),
+            _unSpawnBuffer = SystemAPI.GetSingletonRW<EntityMultiplyThreadBufferCacheComponentData>().ValueRW.UnSpawnpawnBuffer.AsParallelWriter(),
         }.ScheduleParallel(state.Dependency);
     }
 }

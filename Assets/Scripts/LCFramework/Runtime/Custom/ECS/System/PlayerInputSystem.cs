@@ -160,7 +160,7 @@ public partial class PlayerInputSystem : SystemBase
     {
         if (!Enabled) return;
 
-        var spawnBuffer = SystemAPI.GetSingletonBuffer<EntitySpawnBuffer>();
+        var spawnBuffer = SystemAPI.GetSingletonRW<EntityMultiplyThreadBufferCacheComponentData>().ValueRW.SpawnBuffer;
         var spawnHelper = SystemAPI.GetSingletonRW<SpawnHelperComponentData>();
         var offset = index % 4;
         if (!_yOffset.ContainsKey(offset))
